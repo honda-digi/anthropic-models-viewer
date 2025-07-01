@@ -1,15 +1,63 @@
+// 1. src/app/api/models/route.ts を新規作成
+import Anthropic from '@anthropic-ai/sdk';
+import { NextRequest } from 'next/server';
+
+export async function GET(request: NextRequest) {
+  try {
+    const apiKey = request.headers.get('x-api-key');
+    
+    if (!apiKey) {
+      return Response.json({ error: 'API Key is required' }, { status: 400 });
+    }
+
+    const anthropic = new Anthropic({
+      apiKey: apiKey,
+    });
+
+    const models = await anthropic.models.list({ limit: 20 });
+    return Response.json(models);
+  } catch (error: any) {
+    console.error('API Error:', error);
+    return Response.json({ error: error.message }, { status: 500 });
+  }
+}
+
+// CORS対応
+export async function OPTIONS(request: NextRequest) {
+  return new Response(null, {
+    status: 200,
+    headers: {
+      'Access-Control-Allow-Origin': '*',
+      'Access-Control-Allow-Methods': 'GET, OPTIONS',
+      'Access-Control-Allow-Headers': 'Content-Type, x-api-key',
+    },
+  });
+}
+
+// 2. src/app/page.tsx を上書き
 'use client';
 
 import { useState } from 'react';
 import styles from './page.module.css';
 
-export default function Home() {
-  const [apiKey, setApiKey] = useState('');
-  const [models, setModels] = useState([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
+interface Model {
+  id: string;
+  type?: string;
+  display_name?: string;
+  created_at?: string;
+}
 
-  const fetchModels = async () => {
+interface ModelsResponse {
+  data: Model[];
+}
+
+export default function Home() {
+  const [apiKey, setApiKey] = useState<string>('');
+  const [models, setModels] = useState<Model[]>([]);
+  const [loading, setLoading] = useState<boolean>(false);
+  const [error, setError] = useState<string>('');
+
+  const fetchModels = async (): Promise<void> => {
     if (!apiKey.trim()) {
       setError('API Keyを入力してください');
       return;
@@ -27,7 +75,7 @@ export default function Home() {
         },
       });
 
-      const data = await response.json();
+      const data: ModelsResponse = await response.json();
       
       if (response.ok) {
         setModels(data.data || []);
@@ -35,16 +83,16 @@ export default function Home() {
           setError('モデルが見つかりませんでした');
         }
       } else {
-        setError(data.error || 'エラーが発生しました');
+        setError((data as any).error || 'エラーが発生しました');
       }
-    } catch (err) {
+    } catch (err: any) {
       setError('ネットワークエラーが発生しました: ' + err.message);
     } finally {
       setLoading(false);
     }
   };
 
-  const handleKeyPress = (e) => {
+  const handleKeyPress = (e: React.KeyboardEvent<HTMLInputElement>): void => {
     if (e.key === 'Enter') {
       fetchModels();
     }
